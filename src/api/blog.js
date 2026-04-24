@@ -257,7 +257,8 @@ export async function getPosts({ category } = {}) {
 
 export async function getPost(slug) {
   try {
-    const res = await fetch(`/api/posts/${slug}`);
+    const enc = encodeURIComponent(slug);
+    const res = await fetch(`/api/posts/${enc}`);
     if (res.ok) return normalizePost(await res.json());
   } catch { /* fall through to local data */ }
   return POSTS.find(p => p.slug === slug) ?? null;
