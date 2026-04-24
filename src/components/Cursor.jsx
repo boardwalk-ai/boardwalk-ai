@@ -2,110 +2,108 @@ import { useRef, useEffect } from 'react';
 import { C } from '../constants';
 
 export default function Cursor() {
-  const dot = useRef(null);
-  const blob = useRef(null);
+  const blobCircle = useRef(null);
+  const tailCircle = useRef(null);
+  const sharpDot   = useRef(null);
+  const svgEl      = useRef(null);
 
   useEffect(() => {
-    let mx = 0, my = 0;   // exact mouse
-    let bx = 0, by = 0;   // lagged blob position
-    let pvx = 0, pvy = 0; // previous velocity for smoothing
+    let mx = 0, my = 0;
+    let bx = 0, by = 0;   // main blob — slow lag
+    let tx = 0, ty = 0;   // tail dot — medium lag
     let hover = false;
     let raf;
 
-    const onMove = (e) => { mx = e.clientX; my = e.clientY; };
-    const onOver = (e) => { hover = e.target.closest('a,button,[data-hover]') !== null; };
+    const onMove  = (e) => { mx = e.clientX; my = e.clientY; };
+    const onOver  = (e) => { hover = e.target.closest('a,button,[data-hover]') !== null; };
+    const onClick = () => {
+      // pulse on click
+      if (!blobCircle.current) return;
+      blobCircle.current.setAttribute('r', hover ? 28 : 22);
+      setTimeout(() => blobCircle.current?.setAttribute('r', hover ? 18 : 13), 120);
+    };
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseover', onOver);
+    window.addEventListener('mousedown', onClick);
 
     const tick = () => {
-      // lag factor — blob chases mouse
-      const lag = hover ? 0.1 : 0.14;
-      bx += (mx - bx) * lag;
-      by += (my - by) * lag;
+      // blob lags most, tail lags less → they stretch apart when fast
+      bx += (mx - bx) * 0.10;
+      by += (my - by) * 0.10;
+      tx += (mx - tx) * 0.22;
+      ty += (my - ty) * 0.22;
 
-      // velocity = gap between exact mouse and blob
-      const vx = mx - bx;
-      const vy = my - by;
+      const speed = Math.hypot(mx - bx, my - by);
 
-      // smooth velocity
-      pvx += (vx - pvx) * 0.3;
-      pvy += (vy - pvy) * 0.3;
+      // tail radius shrinks as it pulls away (neck effect)
+      const tailR = Math.max(2, 7 - speed * 0.18);
+      const blobR = hover ? 18 : 13;
+      const fill  = hover ? C.accent : C.ink;
 
-      const speed = Math.hypot(pvx, pvy);
-      const angle = Math.atan2(pvy, pvx) * (180 / Math.PI);
-
-      // stretch: more speed = more elongation
-      const stretch = Math.min(speed * 0.045, 1.6);
-      const scaleX = 1 + stretch;
-      const scaleY = Math.max(1 - stretch * 0.4, 0.4);
-
-      // blob size
-      const size = hover ? 48 : 28;
-      const half = size / 2;
-
-      if (dot.current) {
-        dot.current.style.transform = `translate(${mx - 3}px, ${my - 3}px)`;
-        dot.current.style.background = hover ? C.bg : C.accent;
-        dot.current.style.width = hover ? '5px' : '6px';
-        dot.current.style.height = hover ? '5px' : '6px';
+      if (blobCircle.current) {
+        blobCircle.current.setAttribute('cx', bx);
+        blobCircle.current.setAttribute('cy', by);
+        blobCircle.current.setAttribute('r',  blobR);
+        blobCircle.current.setAttribute('fill', fill);
       }
-
-      if (blob.current) {
-        blob.current.style.width = `${size}px`;
-        blob.current.style.height = `${size}px`;
-        blob.current.style.transform = `
-          translate(${bx - half}px, ${by - half}px)
-          rotate(${angle}deg)
-          scaleX(${scaleX})
-          scaleY(${scaleY})
-        `;
-        blob.current.style.background = hover
-          ? C.accent
-          : 'transparent';
-        blob.current.style.border = hover
-          ? 'none'
-          : `1.5px solid ${C.ink}`;
-        blob.current.style.opacity = hover ? '0.85' : '1';
+      if (tailCircle.current) {
+        tailCircle.current.setAttribute('cx', tx);
+        tailCircle.current.setAttribute('cy', ty);
+        tailCircle.current.setAttribute('r',  tailR);
+        tailCircle.current.setAttribute('fill', fill);
+      }
+      if (sharpDot.current) {
+        sharpDot.current.setAttribute('cx', mx);
+        sharpDot.current.setAttribute('cy', my);
+        sharpDot.current.setAttribute('r', hover ? 2.5 : 2);
+        sharpDot.current.setAttribute('fill', hover ? C.bg : C.accent);
       }
 
       raf = requestAnimationFrame(tick);
     };
-
     tick();
+
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseover', onOver);
+      window.removeEventListener('mousedown', onClick);
     };
   }, []);
 
   return (
-    <>
-      {/* sharp accent dot — exact position */}
-      <div ref={dot} style={{
-        position: 'fixed', top: 0, left: 0,
-        width: 6, height: 6,
-        borderRadius: '50%',
-        background: C.accent,
-        pointerEvents: 'none',
-        zIndex: 10001,
-        willChange: 'transform',
-        mixBlendMode: 'multiply',
-      }} />
+    <svg
+      ref={svgEl}
+      style={{
+        position: 'fixed', inset: 0,
+        width: '100vw', height: '100vh',
+        pointerEvents: 'none', zIndex: 10000,
+        overflow: 'visible',
+      }}
+    >
+      <defs>
+        <filter id="goo" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+          <feColorMatrix
+            in="blur" mode="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 28 -12"
+            result="goo"
+          />
+        </filter>
+      </defs>
 
-      {/* liquid blob — lags + stretches */}
-      <div ref={blob} style={{
-        position: 'fixed', top: 0, left: 0,
-        width: 28, height: 28,
-        borderRadius: '50%',
-        border: `1.5px solid ${C.ink}`,
-        background: 'transparent',
-        pointerEvents: 'none',
-        zIndex: 10000,
-        willChange: 'transform',
-        transition: 'width .2s, height .2s, background .2s, border .2s, opacity .2s',
-      }} />
-    </>
+      {/* gooey group — blob + tail merge like liquid */}
+      <g filter="url(#goo)">
+        <circle ref={blobCircle} cx="0" cy="0" r="13" fill={C.ink} />
+        <circle ref={tailCircle} cx="0" cy="0" r="6"  fill={C.ink} />
+      </g>
+
+      {/* sharp dot outside the filter — stays crisp at exact position */}
+      <circle ref={sharpDot} cx="0" cy="0" r="2" fill={C.accent} />
+    </svg>
   );
 }
