@@ -23,7 +23,15 @@ export default function Reveal({
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setOn(true); obs.disconnect(); } },
+      ([e]) => {
+        if (e.isIntersecting) {
+          setOn(true);
+        } else if (e.boundingClientRect.top > 0) {
+          // element is below viewport — reset so it re-animates on next scroll down
+          setOn(false);
+        }
+        // element above viewport (already passed) — leave visible
+      },
       { threshold: 0.12, rootMargin: '0px 0px -48px 0px' }
     );
     obs.observe(el);
