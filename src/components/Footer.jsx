@@ -22,7 +22,7 @@ const cols = [
   {
     heading: 'Company',
     links: [
-      { label: 'Blog',        href: '#' },
+      { label: 'Blog',        href: '/blog', internal: true },
       { label: 'Developers',  href: '#' },
       { label: 'Careers',     href: '#' },
     ],

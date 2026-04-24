@@ -15,6 +15,7 @@ import CTA from './components/CTA';
 import Footer from './components/Footer';
 import TrustCenter from './pages/TrustCenter';
 import Changelog from './pages/Changelog';
+import Blog from './pages/Blog';
 
 const ACCENT    = '#e32400';
 const HERO_WORD = 'academic';
@@ -73,6 +74,7 @@ export default function App() {
         <Route path="/"            element={<Home />} />
         <Route path="/trust-center" element={<TrustCenter />} />
         <Route path="/changelog"    element={<Changelog />} />
+        <Route path="/blog"         element={<Blog />} />
       </Routes>
     </>
   );
