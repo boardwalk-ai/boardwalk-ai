@@ -16,6 +16,7 @@ import Footer from './components/Footer';
 import TrustCenter from './pages/TrustCenter';
 import Changelog from './pages/Changelog';
 import Blog from './pages/Blog';
+import BlogPost from './pages/BlogPost';
 
 const ACCENT    = '#e32400';
 const HERO_WORD = 'academic';
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/trust-center" element={<TrustCenter />} />
         <Route path="/changelog"    element={<Changelog />} />
         <Route path="/blog"         element={<Blog />} />
+        <Route path="/blog/:slug"   element={<BlogPost />} />
       </Routes>
     </>
   );
