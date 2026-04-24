@@ -203,24 +203,20 @@ export const POSTS = [
   },
 ];
 
-const BASE = import.meta.env.VITE_API_URL;
-
 export async function getPosts({ category } = {}) {
-  if (BASE) {
-    const q = category && category !== 'ALL' ? `?category=${category.toLowerCase()}` : '';
-    const res = await fetch(`${BASE}/api/posts${q}`);
-    if (!res.ok) throw new Error('Failed to fetch posts');
-    return res.json();
-  }
+  const q = category && category !== 'ALL' ? `?category=${category}` : '';
+  try {
+    const res = await fetch(`/api/posts${q}`);
+    if (res.ok) return res.json();
+  } catch { /* fall through to local data */ }
   if (category && category !== 'ALL') return POSTS.filter(p => p.cat === category);
   return POSTS;
 }
 
 export async function getPost(slug) {
-  if (BASE) {
-    const res = await fetch(`${BASE}/api/posts/${slug}`);
-    if (!res.ok) return null;
-    return res.json();
-  }
+  try {
+    const res = await fetch(`/api/posts/${slug}`);
+    if (res.ok) return res.json();
+  } catch { /* fall through to local data */ }
   return POSTS.find(p => p.slug === slug) ?? null;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { C, F } from '../constants';
 
@@ -193,9 +193,32 @@ function Entry({ entry, filter, isFirst }) {
   );
 }
 
+function normalizeEntry(e) {
+  return {
+    version: e.version,
+    full: e.full_version || e.full,
+    date: e.date,
+    status: e.status || null,
+    summary: e.summary,
+    changes: (e.changes || []).map(c => ({ type: c.type, text: c.text })),
+  };
+}
+
 // ── Page ──────────────────────────────────────────────────────────
 export default function Changelog() {
   const [filter, setFilter] = useState('ALL');
+  const [liveEntries, setLiveEntries] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/changelog')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => setLiveEntries(data.map(normalizeEntry)))
+      .catch(() => {});
+  }, []);
+
+  const displayEntries = liveEntries && liveEntries.length > 0 ? liveEntries : entries;
+  const latestVersion = displayEntries[0]?.full || 'v0.4.0';
+  const latestDate = displayEntries[0]?.date || 'April 2026';
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh' }}>
@@ -300,13 +323,13 @@ export default function Changelog() {
           </button>
         ))}
         <div style={{ marginLeft: 'auto', fontFamily: F.mono, fontSize: 11, color: C.mute, letterSpacing: '0.1em', padding: '20px 0' }}>
-          LATEST — v0.4.0 · APRIL 2026
+          LATEST — {latestVersion} · {latestDate.toUpperCase()}
         </div>
       </div>
 
       {/* Entries */}
       <div style={{ padding: '0 48px', maxWidth: 1100, margin: '0 auto' }}>
-        {entries.map((entry, i) => (
+        {displayEntries.map((entry, i) => (
           <Entry key={entry.full} entry={entry} filter={filter} isFirst={i === 0} />
         ))}
       </div>
