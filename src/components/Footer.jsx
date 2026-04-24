@@ -1,12 +1,45 @@
 import { C, F } from '../constants';
 
+const cols = [
+  {
+    heading: 'Products',
+    links: [
+      { label: 'Octopilot AI', href: 'https://www.octopilotai.com', external: true },
+      { label: 'Changelog',    href: '#' },
+      { label: 'Trust Center', href: '#' },
+      { label: 'Roadmap',      href: '#' },
+    ],
+  },
+  {
+    heading: 'Services',
+    links: [
+      { label: 'Custom contracts',       href: '#' },
+      { label: 'AI for education',       href: '#' },
+      { label: 'Research partnerships',  href: '#' },
+    ],
+  },
+  {
+    heading: 'Company',
+    links: [
+      { label: 'Blog',        href: '#' },
+      { label: 'Developers',  href: '#' },
+      { label: 'Careers',     href: '#' },
+    ],
+  },
+];
+
 export default function Footer() {
   return (
     <footer style={{
       background: C.bgDeep, color: C.ink, padding: '72px 48px 32px',
       fontFamily: F.sans, fontSize: 13, borderTop: `1px solid ${C.ink}`,
     }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.2fr', gap: 48, marginBottom: 56 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '2fr 1fr 1fr 1fr 1.2fr',
+        gap: 48, marginBottom: 56,
+      }}>
+        {/* brand + address */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <svg width="28" height="28" viewBox="0 0 28 28">
@@ -25,29 +58,35 @@ export default function Footer() {
           </div>
         </div>
 
-        {[
-          ['Products', ['Octopilot AI', 'Changelog', 'Trust Center', 'Roadmap']],
-          ['Services', ['Custom contracts', 'AI for education', 'Research partnerships']],
-        ].map(([h, links]) => (
-          <div key={h}>
+        {/* link columns */}
+        {cols.map(({ heading, links }) => (
+          <div key={heading}>
             <div style={{ color: C.mute, fontFamily: F.mono, fontSize: 10, letterSpacing: '0.2em', marginBottom: 16 }}>
-              {h.toUpperCase()}
+              {heading.toUpperCase()}
             </div>
-            {links.map(x => (
-              <div key={x} style={{ marginBottom: 10 }}>
-                <a className="bw-hov" href="#" style={{ color: C.ink, textDecoration: 'none' }}>{x}</a>
+            {links.map(({ label, href, external }) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <a
+                  className="bw-hov"
+                  href={href}
+                  {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+                  style={{ color: C.ink, textDecoration: 'none' }}
+                >
+                  {label}{external ? ' ↗' : ''}
+                </a>
               </div>
             ))}
           </div>
         ))}
 
+        {/* contact */}
         <div>
           <div style={{ color: C.mute, fontFamily: F.mono, fontSize: 10, letterSpacing: '0.2em', marginBottom: 16 }}>
             CONTACT
           </div>
           <div style={{ marginBottom: 10 }}>
-            <a className="bw-hov" href="mailto:hello@boardwalklabs.co" style={{ color: C.ink, textDecoration: 'none' }}>
-              hello@boardwalklabs.co
+            <a className="bw-hov" href="mailto:support@octopilotai.com" style={{ color: C.ink, textDecoration: 'none' }}>
+              support@octopilotai.com
             </a>
           </div>
           <div style={{ marginBottom: 10 }}>
