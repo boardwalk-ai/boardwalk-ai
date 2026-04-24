@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    name: Build & deploy (static, CADO separate)
+    name: Build & deploy
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -19,8 +19,9 @@ jobs:
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USER: ${{ secrets.SSH_USER }}
       SSH_PORT: ${{ secrets.SSH_PORT }}
-      STATIC_SITE_DIR: ${{ secrets.STATIC_SITE_DIR }}
+      REMOTE_DIR: ${{ secrets.REMOTE_DIR }}
       SITE_URL: ${{ secrets.SITE_URL }}
+      COMPOSE_SERVICE: ${{ secrets.COMPOSE_SERVICE }}
 
     steps:
       - name: Checkout
@@ -41,8 +42,9 @@ jobs:
       - name: Apply defaults
         run: |
           echo "SSH_PORT=${SSH_PORT:-22}" >> "$GITHUB_ENV"
-          echo "STATIC_SITE_DIR=${STATIC_SITE_DIR:-/opt/boardwalklabs-site}" >> "$GITHUB_ENV"
+          echo "REMOTE_DIR=${REMOTE_DIR:-/opt/boardwalkbags}" >> "$GITHUB_ENV"
           echo "SITE_URL=${SITE_URL:-https://boardwalklabs.pro/}" >> "$GITHUB_ENV"
+          echo "COMPOSE_SERVICE=${COMPOSE_SERVICE:-cado-search}" >> "$GITHUB_ENV"
 
       - name: Configure SSH
         run: |
@@ -53,44 +55,41 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "$SSH_PORT" -t rsa,ecdsa,ed25519 "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy dist to VPS (nginx static root)
+      - name: Deploy dist to VPS
         run: |
           set -euo pipefail
           SSH="ssh -o BatchMode=yes -i $HOME/.ssh/id_ed25519 -p $SSH_PORT $SSH_USER@$SSH_HOST"
           TS=$(date -u +%Y%m%d-%H%M%S)
-          STAGING="${STATIC_SITE_DIR}.new"
 
-          echo "::group::Backup current static tree"
+          echo "::group::Backup current public/ on VPS"
           $SSH "set -e; \
-            mkdir -p \"\$(dirname \"$STATIC_SITE_DIR\")/boardwalklabs-backups\"; \
-            if [ -d \"$STATIC_SITE_DIR\" ]; then \
-              tar -czf \"\$(dirname \"$STATIC_SITE_DIR\")/boardwalklabs-backups/site-before-ci-$TS.tgz\" -C \"\$(dirname \"$STATIC_SITE_DIR\")\" \"\$(basename \"$STATIC_SITE_DIR\")\"; \
+            mkdir -p '$REMOTE_DIR/backups'; \
+            if [ -d '$REMOTE_DIR/public' ]; then \
+              tar -czf '$REMOTE_DIR/backups/public-before-ci-$TS.tgz' -C '$REMOTE_DIR' public; \
             fi; \
-            rm -rf \"$STAGING\"; \
-            mkdir -p \"$STAGING\""
+            rm -rf '$REMOTE_DIR/public.new'; \
+            mkdir -p '$REMOTE_DIR/public.new'"
           echo "::endgroup::"
 
-          echo "::group::Rsync dist/ → staging"
+          echo "::group::Sync dist/ to VPS (atomic staging)"
           rsync -az --delete \
             -e "ssh -o BatchMode=yes -i $HOME/.ssh/id_ed25519 -p $SSH_PORT" \
-            dist/ "$SSH_USER@$SSH_HOST:$STAGING/"
+            dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/public.new/"
           echo "::endgroup::"
 
-          echo "::group::Atomic swap + permissions + nginx reload"
-          $SSH "set -euo pipefail; \
-            OLD=\"${STATIC_SITE_DIR}.old\"; \
-            rm -rf \"\$OLD\"; \
-            if [ -d \"$STATIC_SITE_DIR\" ]; then mv \"$STATIC_SITE_DIR\" \"\$OLD\"; fi; \
-            mv \"$STAGING\" \"$STATIC_SITE_DIR\"; \
-            chown -R www-data:www-data \"$STATIC_SITE_DIR\"; \
-            find \"$STATIC_SITE_DIR\" -type d -exec chmod 755 {} \\;; \
-            find \"$STATIC_SITE_DIR\" -type f -exec chmod 644 {} \\;; \
-            nginx -t; \
-            nginx -s reload || systemctl reload nginx; \
-            rm -rf \"\$OLD\""
+          echo "::group::Swap staging into public/ and rebuild container"
+          $SSH "set -e; \
+            cd '$REMOTE_DIR'; \
+            rm -rf public.old; \
+            if [ -d public ]; then mv public public.old; fi; \
+            mv public.new public; \
+            docker compose build '$COMPOSE_SERVICE'; \
+            docker compose up -d --no-deps '$COMPOSE_SERVICE'; \
+            rm -rf public.old; \
+            docker ps --filter name='$COMPOSE_SERVICE' --format '{{.Names}}\t{{.Status}}'"
           echo "::endgroup::"
 
-      - name: Verify marketing site
+      - name: Verify site
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
@@ -105,19 +104,3 @@ jobs:
           done
           echo "::error::Site did not return 200 after 10 attempts"
           exit 1
-
-      - name: Verify CADO path still proxies
-        run: |
-          set -euo pipefail
-          base="${SITE_URL%/}"
-          code=$(curl -fsS -o /tmp/assist.html -w "%{http_code}" "$base/boardwalkassist" || true)
-          echo "GET $base/boardwalkassist → HTTP $code"
-          if [ "$code" != "200" ]; then
-            echo "::error::CADO /boardwalkassist did not return 200"
-            exit 1
-          fi
-          grep -qi "CADO\|boardwalkassist\|lookup" /tmp/assist.html || {
-            echo "::error::Unexpected /boardwalkassist body"
-            exit 1
-          }
-          echo "::notice::CADO path healthy"

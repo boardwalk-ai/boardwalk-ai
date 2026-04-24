@@ -6,7 +6,7 @@ const cols = [
     heading: 'Products',
     links: [
       { label: 'Octopilot AI', href: 'https://www.octopilotai.com', external: true },
-      { label: 'Changelog',    href: '#' },
+      { label: 'Changelog',    href: '/changelog', internal: true },
       { label: 'Trust Center', href: '/trust-center', internal: true },
       { label: 'Roadmap',      href: '#' },
     ],
