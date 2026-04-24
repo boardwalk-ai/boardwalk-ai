@@ -1,16 +1,31 @@
 import { useRef, useEffect } from 'react';
 import { C } from '../constants';
 
+// ink and accent as RGB arrays for pixel blending
+const INK    = [20, 17, 13];
+const ACCENT = [227, 36, 0];
+
 export default function Cursor() {
-  const blobRef = useRef(null);
-  const tailRef = useRef(null);
-  const dotRef  = useRef(null);
+  const canvasRef = useRef(null);
+  const dotRef    = useRef(null);
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx    = canvas.getContext('2d');
+    const SIZE   = 200;
+    const HALF   = SIZE / 2;
+    canvas.width  = SIZE;
+    canvas.height = SIZE;
+
+    // reuse ImageData buffer every frame — no GC pressure
+    const imageData = ctx.createImageData(SIZE, SIZE);
+    const data      = imageData.data;
+
     let mx = 0, my = 0;
-    let bx = 0, by = 0;  // blob  — slowest lag, stays furthest behind
-    let tx = 0, ty = 0;  // tail  — medium lag, lives between blob & mouse
-    let hover = false;
+    let bx = 0, by = 0;   // blob  — slowest
+    let tx = 0, ty = 0;   // tail  — medium
+    let colorT = 0;        // 0 = ink, 1 = accent (lerped on hover)
+    let hover  = false;
     let raf;
 
     const onMove = (e) => { mx = e.clientX; my = e.clientY; };
@@ -20,30 +35,72 @@ export default function Cursor() {
     window.addEventListener('mouseover', onOver);
 
     const tick = () => {
-      bx += (mx - bx) * 0.09;  // blob lags most
+      bx += (mx - bx) * 0.09;
       by += (my - by) * 0.09;
-      tx += (mx - tx) * 0.16;  // tail stays close enough to blob to merge
+      tx += (mx - tx) * 0.16;
       ty += (my - ty) * 0.16;
 
-      const speed   = Math.hypot(mx - bx, my - by);
-      // tail radius shrinks as gap widens → visible neck then separation
-      const tailR   = Math.max(1.5, 7 - speed * 0.14);
-      const blobR   = hover ? 17 : 13;
-      const fill    = hover ? C.accent : C.ink;
+      // smooth color transition ink ↔ accent on hover
+      colorT += ((hover ? 1 : 0) - colorT) * 0.12;
+      const cr = INK[0] + (ACCENT[0] - INK[0]) * colorT | 0;
+      const cg = INK[1] + (ACCENT[1] - INK[1]) * colorT | 0;
+      const cb = INK[2] + (ACCENT[2] - INK[2]) * colorT | 0;
 
-      blobRef.current?.setAttribute('cx',   bx);
-      blobRef.current?.setAttribute('cy',   by);
-      blobRef.current?.setAttribute('r',    blobR);
-      blobRef.current?.setAttribute('fill', fill);
+      const speed  = Math.hypot(mx - bx, my - by);
+      const blobR  = hover ? 16 : 12;
+      // tail shrinks as speed increases — creates the neck then snap-off
+      const tailR  = Math.max(1.5, 6.5 - speed * 0.11);
 
-      tailRef.current?.setAttribute('cx',   tx);
-      tailRef.current?.setAttribute('cy',   ty);
-      tailRef.current?.setAttribute('r',    tailR);
-      tailRef.current?.setAttribute('fill', fill);
+      // center canvas on midpoint of the two balls
+      const cx = (bx + tx) * 0.5;
+      const cy = (by + ty) * 0.5;
+      canvas.style.transform = `translate(${cx - HALF}px, ${cy - HALF}px)`;
 
-      dotRef.current?.setAttribute('cx', mx);
-      dotRef.current?.setAttribute('cy', my);
-      dotRef.current?.setAttribute('fill', hover ? '#fff' : C.accent);
+      // ball positions in canvas-local space
+      const lbx = bx - cx + HALF;
+      const lby = by - cy + HALF;
+      const ltx = tx - cx + HALF;
+      const lty = ty - cy + HALF;
+
+      const bR2 = blobR * blobR;
+      const tR2 = tailR * tailR;
+
+      // ── metaball field per pixel ──────────────────────────────────
+      // field = Σ r²/d² for each ball.
+      // field >= 1.0 → inside the merged surface.
+      // anti-alias band: [0.88, 1.08] → smooth alpha edge.
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          const dx1 = x - lbx, dy1 = y - lby;
+          const dx2 = x - ltx, dy2 = y - lty;
+          const d1  = dx1 * dx1 + dy1 * dy1 || 0.01;
+          const d2  = dx2 * dx2 + dy2 * dy2 || 0.01;
+          const f   = bR2 / d1 + tR2 / d2;
+
+          const idx = (y * SIZE + x) << 2;
+          if (f > 1.08) {
+            data[idx]     = cr;
+            data[idx + 1] = cg;
+            data[idx + 2] = cb;
+            data[idx + 3] = 255;
+          } else if (f > 0.88) {
+            // smooth falloff at surface edge
+            const a = (f - 0.88) / 0.20;
+            data[idx]     = cr;
+            data[idx + 1] = cg;
+            data[idx + 2] = cb;
+            data[idx + 3] = a * 255 | 0;
+          } else {
+            data[idx + 3] = 0;
+          }
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      // sharp accent dot — exact mouse position, outside the metaball canvas
+      if (dotRef.current) {
+        dotRef.current.style.transform = `translate(${mx - 3}px, ${my - 3}px)`;
+      }
 
       raf = requestAnimationFrame(tick);
     };
@@ -57,36 +114,19 @@ export default function Cursor() {
   }, []);
 
   return (
-    <svg style={{
-      position: 'fixed', inset: 0, width: '100vw', height: '100vh',
-      pointerEvents: 'none', zIndex: 10000, overflow: 'visible',
-    }}>
-      <defs>
-        <filter id="goo" x="-30%" y="-30%" width="160%" height="160%">
-          {/* 1. blur both circles together */}
-          <feGaussianBlur in="SourceGraphic" stdDeviation="5.5" result="blur" />
-          {/* 2. boost alpha contrast → hard gooey edges */}
-          <feColorMatrix in="blur" mode="matrix"
-            values="1 0 0 0 0
-                    0 1 0 0 0
-                    0 0 1 0 0
-                    0 0 0 24 -9"
-            result="gooMask"
-          />
-          {/* 3. clip original sharp colors to the goo alpha shape
-                 → ink color stays correct, no cream bleed */}
-          <feComposite in="SourceGraphic" in2="gooMask" operator="in" />
-        </filter>
-      </defs>
-
-      {/* gooey group — blob + tail merge/separate like liquid */}
-      <g filter="url(#goo)">
-        <circle ref={blobRef} cx="0" cy="0" r="13" fill={C.ink} />
-        <circle ref={tailRef} cx="0" cy="0" r="7"  fill={C.ink} />
-      </g>
-
-      {/* sharp accent dot outside the filter — always crisp at exact mouse */}
-      <circle ref={dotRef} cx="0" cy="0" r="2.5" fill={C.accent} />
-    </svg>
+    <>
+      <canvas ref={canvasRef} style={{
+        position: 'fixed', top: 0, left: 0,
+        pointerEvents: 'none', zIndex: 10000,
+        willChange: 'transform',
+      }} />
+      <div ref={dotRef} style={{
+        position: 'fixed', top: 0, left: 0,
+        width: 6, height: 6, borderRadius: '50%',
+        background: C.accent,
+        pointerEvents: 'none', zIndex: 10001,
+        willChange: 'transform',
+      }} />
+    </>
   );
 }
