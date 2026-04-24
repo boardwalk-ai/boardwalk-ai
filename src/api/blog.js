@@ -203,11 +203,26 @@ export const POSTS = [
   },
 ];
 
+/** API uses read_time / accent_color; UI expects readTime / accentLine */
+function normalizePost(p) {
+  if (!p || typeof p !== 'object') return p;
+  return {
+    ...p,
+    readTime: p.readTime ?? p.read_time ?? '',
+    accentLine: p.accentLine ?? p.accent_color ?? C.accent,
+    date: p.date != null ? String(p.date) : '',
+    excerpt: p.excerpt ?? '',
+  };
+}
+
 export async function getPosts({ category } = {}) {
   const q = category && category !== 'ALL' ? `?category=${category}` : '';
   try {
     const res = await fetch(`/api/posts${q}`);
-    if (res.ok) return res.json();
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data.map(normalizePost) : data;
+    }
   } catch { /* fall through to local data */ }
   if (category && category !== 'ALL') return POSTS.filter(p => p.cat === category);
   return POSTS;
@@ -216,7 +231,7 @@ export async function getPosts({ category } = {}) {
 export async function getPost(slug) {
   try {
     const res = await fetch(`/api/posts/${slug}`);
-    if (res.ok) return res.json();
+    if (res.ok) return normalizePost(await res.json());
   } catch { /* fall through to local data */ }
   return POSTS.find(p => p.slug === slug) ?? null;
 }
