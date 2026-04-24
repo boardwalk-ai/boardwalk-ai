@@ -1,0 +1,106 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      REMOTE_DIR: ${{ secrets.REMOTE_DIR }}
+      SITE_URL: ${{ secrets.SITE_URL }}
+      COMPOSE_SERVICE: ${{ secrets.COMPOSE_SERVICE }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Vite site
+        run: npm run build
+
+      - name: Apply defaults
+        run: |
+          echo "SSH_PORT=${SSH_PORT:-22}" >> "$GITHUB_ENV"
+          echo "REMOTE_DIR=${REMOTE_DIR:-/opt/boardwalkbags}" >> "$GITHUB_ENV"
+          echo "SITE_URL=${SITE_URL:-https://boardwalklabs.pro/}" >> "$GITHUB_ENV"
+          echo "COMPOSE_SERVICE=${COMPOSE_SERVICE:-cado-search}" >> "$GITHUB_ENV"
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$SSH_PORT" -t rsa,ecdsa,ed25519 "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy dist to VPS
+        run: |
+          set -euo pipefail
+          SSH="ssh -o BatchMode=yes -i $HOME/.ssh/id_ed25519 -p $SSH_PORT $SSH_USER@$SSH_HOST"
+          TS=$(date -u +%Y%m%d-%H%M%S)
+
+          echo "::group::Backup current public/ on VPS"
+          $SSH "set -e; \
+            mkdir -p '$REMOTE_DIR/backups'; \
+            if [ -d '$REMOTE_DIR/public' ]; then \
+              tar -czf '$REMOTE_DIR/backups/public-before-ci-$TS.tgz' -C '$REMOTE_DIR' public; \
+            fi; \
+            rm -rf '$REMOTE_DIR/public.new'; \
+            mkdir -p '$REMOTE_DIR/public.new'"
+          echo "::endgroup::"
+
+          echo "::group::Sync dist/ to VPS (atomic staging)"
+          rsync -az --delete \
+            -e "ssh -o BatchMode=yes -i $HOME/.ssh/id_ed25519 -p $SSH_PORT" \
+            dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/public.new/"
+          echo "::endgroup::"
+
+          echo "::group::Swap staging into public/ and rebuild container"
+          $SSH "set -e; \
+            cd '$REMOTE_DIR'; \
+            rm -rf public.old; \
+            if [ -d public ]; then mv public public.old; fi; \
+            mv public.new public; \
+            docker compose build '$COMPOSE_SERVICE'; \
+            docker compose up -d --no-deps '$COMPOSE_SERVICE'; \
+            rm -rf public.old; \
+            docker ps --filter name='$COMPOSE_SERVICE' --format '{{.Names}}\t{{.Status}}'"
+          echo "::endgroup::"
+
+      - name: Verify site
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -fsS -o /tmp/site.html -w "%{http_code}" "$SITE_URL" || true)
+            echo "attempt $attempt → HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "::notice::Site healthy at $SITE_URL"
+              grep -o "index-[A-Za-z0-9_-]*\.js" /tmp/site.html | head -n1 || true
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "::error::Site did not return 200 after 10 attempts"
+          exit 1
