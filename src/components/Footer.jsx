@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { C, F } from '../constants';
 
 const cols = [
@@ -6,7 +7,7 @@ const cols = [
     links: [
       { label: 'Octopilot AI', href: 'https://www.octopilotai.com', external: true },
       { label: 'Changelog',    href: '#' },
-      { label: 'Trust Center', href: '#' },
+      { label: 'Trust Center', href: '/trust-center', internal: true },
       { label: 'Roadmap',      href: '#' },
     ],
   },
@@ -64,16 +65,12 @@ export default function Footer() {
             <div style={{ color: C.mute, fontFamily: F.mono, fontSize: 10, letterSpacing: '0.2em', marginBottom: 16 }}>
               {heading.toUpperCase()}
             </div>
-            {links.map(({ label, href, external }) => (
+            {links.map(({ label, href, external, internal }) => (
               <div key={label} style={{ marginBottom: 10 }}>
-                <a
-                  className="bw-hov"
-                  href={href}
-                  {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
-                  style={{ color: C.ink, textDecoration: 'none' }}
-                >
-                  {label}{external ? ' ↗' : ''}
-                </a>
+                {internal
+                  ? <Link className="bw-hov" to={href} style={{ color: C.ink, textDecoration: 'none' }}>{label}</Link>
+                  : <a className="bw-hov" href={href} {...(external ? { target: '_blank', rel: 'noreferrer' } : {})} style={{ color: C.ink, textDecoration: 'none' }}>{label}{external ? ' ↗' : ''}</a>
+                }
               </div>
             ))}
           </div>
