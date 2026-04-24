@@ -1,5 +1,11 @@
 # React + Vite
 
+## Production (boardwalklabs.pro)
+
+The marketing site is deployed as **static files** on the VPS (nginx `root` + `try_files` for SPA routes). **CADO** stays on the Node container (`/boardwalkassist` → port 3050) and is **not** mixed with the Vite build path in nginx.
+
+GitHub Actions (`.github/workflows/deploy.yml`) rsyncs `dist/` to `/opt/boardwalklabs-site` and reloads nginx. Optional secret: `STATIC_SITE_DIR` (defaults to `/opt/boardwalklabs-site`).
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
