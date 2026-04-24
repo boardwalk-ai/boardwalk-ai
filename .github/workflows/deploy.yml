@@ -56,37 +56,33 @@ jobs:
           ssh-keyscan -p "$SSH_PORT" -t rsa,ecdsa,ed25519 "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy dist to VPS
+        env:
+          STATIC_SITE_DIR: /opt/boardwalklabs-site
         run: |
           set -euo pipefail
           SSH="ssh -o BatchMode=yes -i $HOME/.ssh/id_ed25519 -p $SSH_PORT $SSH_USER@$SSH_HOST"
           TS=$(date -u +%Y%m%d-%H%M%S)
 
-          echo "::group::Backup current public/ on VPS"
+          echo "::group::Stage new build on VPS"
           $SSH "set -e; \
-            mkdir -p '$REMOTE_DIR/backups'; \
-            if [ -d '$REMOTE_DIR/public' ]; then \
-              tar -czf '$REMOTE_DIR/backups/public-before-ci-$TS.tgz' -C '$REMOTE_DIR' public; \
-            fi; \
-            rm -rf '$REMOTE_DIR/public.new'; \
-            mkdir -p '$REMOTE_DIR/public.new'"
+            rm -rf '${STATIC_SITE_DIR}.new'; \
+            mkdir -p '${STATIC_SITE_DIR}.new'"
           echo "::endgroup::"
 
           echo "::group::Sync dist/ to VPS (atomic staging)"
           rsync -az --delete \
             -e "ssh -o BatchMode=yes -i $HOME/.ssh/id_ed25519 -p $SSH_PORT" \
-            dist/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/public.new/"
+            dist/ "$SSH_USER@$SSH_HOST:${STATIC_SITE_DIR}.new/"
           echo "::endgroup::"
 
-          echo "::group::Swap staging into public/ and rebuild container"
+          echo "::group::Atomic swap and set permissions"
           $SSH "set -e; \
-            cd '$REMOTE_DIR'; \
-            rm -rf public.old; \
-            if [ -d public ]; then mv public public.old; fi; \
-            mv public.new public; \
-            docker compose build '$COMPOSE_SERVICE'; \
-            docker compose up -d --no-deps '$COMPOSE_SERVICE'; \
-            rm -rf public.old; \
-            docker ps --filter name='$COMPOSE_SERVICE' --format '{{.Names}}\t{{.Status}}'"
+            rm -rf '${STATIC_SITE_DIR}.old'; \
+            if [ -d '$STATIC_SITE_DIR' ]; then mv '$STATIC_SITE_DIR' '${STATIC_SITE_DIR}.old'; fi; \
+            mv '${STATIC_SITE_DIR}.new' '$STATIC_SITE_DIR'; \
+            chown -R www-data:www-data '$STATIC_SITE_DIR'; \
+            nginx -t && nginx -s reload; \
+            rm -rf '${STATIC_SITE_DIR}.old'"
           echo "::endgroup::"
 
       - name: Verify site
