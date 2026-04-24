@@ -1,0 +1,24 @@
+html, body { margin: 0; padding: 0; background: #f3eee4; scroll-behavior: smooth; }
+* { box-sizing: border-box; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; cursor: none; }
+::selection { background: var(--bw-accent, #e32400); color: #f3eee4; }
+a, button { cursor: none; }
+
+@keyframes bw-mq1 { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes bw-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes bw-rise { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.bw-rise { animation: bw-rise 1s cubic-bezier(.2,.7,.3,1) both; }
+
+.bw-hov { position: relative; overflow: hidden; display: inline-block; }
+.bw-hov::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform .5s cubic-bezier(.65,0,.35,1);
+}
+.bw-hov:hover::after { transform: scaleX(1); transform-origin: left; }
