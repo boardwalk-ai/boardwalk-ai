@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { C, F } from '../constants';
 import { getPosts } from '../api/blog';
+import AuthorAvatar from '../components/AuthorAvatar';
 
 const CATEGORIES = ['ALL', 'PRODUCT', 'EDUCATION', 'ENGINEERING', 'COMPANY'];
 
@@ -65,14 +66,7 @@ function FeaturedCard({ post }) {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: '50%',
-                background: post.author.color, color: '#fff',
-                display: 'grid', placeItems: 'center',
-                fontFamily: F.display, fontSize: 13, fontWeight: 500,
-              }}>
-                {post.author.initials}
-              </div>
+              <AuthorAvatar author={post.author} size={36} />
               <div>
                 <div style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 500, color: C.bg }}>{post.author.name}</div>
                 <div style={{ fontFamily: F.mono, fontSize: 10, color: 'rgba(243,238,228,0.4)', letterSpacing: '0.1em' }}>{post.date.toUpperCase()}</div>
@@ -153,14 +147,7 @@ function PostCard({ post, large = false }) {
         </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: post.author.color, color: '#fff',
-              display: 'grid', placeItems: 'center',
-              fontFamily: F.display, fontSize: 11, fontWeight: 500,
-            }}>
-              {post.author.initials}
-            </div>
+            <AuthorAvatar author={post.author} size={28} />
             <span style={{ fontFamily: F.sans, fontSize: 12, color: C.mute }}>{post.author.name}</span>
           </div>
           <div style={{

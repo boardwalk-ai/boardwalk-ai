@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { C, F } from '../constants';
 import { getPost, getPosts } from '../api/blog';
+import AuthorAvatar from '../components/AuthorAvatar';
 
 // ── Reading progress bar ─────────────────────────────────────────
 function ReadingProgress({ color }) {
@@ -230,15 +231,7 @@ export default function BlogPost() {
           </h1>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: post.author.color, color: '#fff',
-              display: 'grid', placeItems: 'center',
-              fontFamily: F.display, fontSize: 15, fontWeight: 500,
-              flexShrink: 0,
-            }}>
-              {post.author.initials}
-            </div>
+            <AuthorAvatar author={post.author} size={44} />
             <div>
               <div style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 500, color: C.bg }}>{post.author.name}</div>
               <div style={{ fontFamily: F.mono, fontSize: 10, color: 'rgba(243,238,228,0.4)', letterSpacing: '0.12em', marginTop: 2 }}>
@@ -282,19 +275,11 @@ export default function BlogPost() {
         <div style={{ maxWidth: 720, borderTop: `1px solid ${C.line}`, paddingTop: 48 }}>
           <div style={{ fontFamily: F.mono, fontSize: 10, color: C.mute, letterSpacing: '0.2em', marginBottom: 20 }}>WRITTEN BY</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%',
-              background: post.author.color, color: '#fff',
-              display: 'grid', placeItems: 'center',
-              fontFamily: F.display, fontSize: 18, fontWeight: 500,
-              flexShrink: 0,
-            }}>
-              {post.author.initials}
-            </div>
+            <AuthorAvatar author={post.author} size={56} />
             <div>
               <div style={{ fontFamily: F.display, fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em', color: C.ink }}>{post.author.name}</div>
               <div style={{ fontFamily: F.sans, fontSize: 13, color: C.mute, marginTop: 4, lineHeight: 1.5 }}>
-                Founder, Boardwalk Labs. Building Octopilot AI and thinking about education software.
+                {post.author.bio || 'Founder, Boardwalk Labs. Building Octopilot AI and thinking about education software.'}
               </div>
             </div>
           </div>
